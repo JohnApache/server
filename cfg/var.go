@@ -15,13 +15,14 @@ var (
 )
 
 var (
-	Master = NewServerConfig(DirConf + "master.json")
+	Master *ServerConfig
 	Whole  *WholeConfig
 	Self   *ServerConfig
 	SelfId int
 )
 
 func TakeConf() {
+	Master = NewServerConfig(DirConf + "master.json")
 	takeWhole()
 	takeSelf()
 }

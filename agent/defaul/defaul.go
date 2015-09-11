@@ -5,36 +5,47 @@ import (
 	"fmt"
 	"time"
 
-	rego "github.com/wzshiming/base"
+	"github.com/wzshiming/base"
 	"github.com/wzshiming/server/agent"
 	"github.com/wzshiming/server/cfg"
 	"github.com/wzshiming/server/route"
 )
 
-var MapFile = "map.json"
+//var MapFile = "map.json"
+
+type DefCfg struct {
+	CodeMaps *route.CodeMaps
+	Agents   []cfg.ServerConfig
+}
 
 func DefaulAgent() *agent.Agent {
 	ro := route.NewRoute(cfg.Whole.Apps)
-	ro.Code().WriteFile(MapFile)
+
+	dj := base.EnJson(DefCfg{
+		CodeMaps: ro.Code(),
+		Agents:   cfg.Whole.Agents,
+	}).Bytes()
 	ag := agent.NewAgent(1024, func(user *agent.User, msg []byte) (err error) {
-		defer rego.PanicErr(&err)
+
+		defer base.PanicErr(&err)
 		var reply agent.Response
-		//rego.INFO(string(msg))
 		user.SetDeadline(time.Now().Add(time.Second * 60 * 60))
 		user.Refresh()
+		if msg[0] == 0 && msg[1] == 0 && msg[2] == 0 && msg[3] == 0 {
+			return user.WriteMsg(append(msg[:4], dj...))
+		}
 		err = ro.CallCode(msg[1], msg[2], msg[3], agent.Request{
 			Session: &user.Session,
-			Request: rego.NewEncodeBytes(msg[4:]),
+			Request: base.NewEncodeBytes(msg[4:]),
 			Head:    msg[:4],
 		}, &reply)
-
 		if err != nil {
 			ret := []byte(`{"error":"` + err.Error() + `"}`)
 			return user.WriteMsg(append(msg[:4], ret...))
 		}
 		return reply.Hand(user, msg[:4])
 
-	})
+	}, nil)
 	return ag
 }
 
@@ -43,8 +54,8 @@ func DefaulConn() agent.Conn {
 	return agent.NewConn(ca)
 }
 
-func DefaulClient(hand func(byte, byte, byte, []byte) error) func(byte, byte, byte, []byte) error {
-	conn := DefaulConn()
+func DefaulClient(addr string, hand func(byte, byte, byte, []byte) error) func(byte, byte, byte, []byte) error {
+	conn := agent.NewConn(addr)
 	size := 0
 	isEnd := false
 	errmsg := errors.New("use of closed network connection")
@@ -78,12 +89,13 @@ func DefaulClient(hand func(byte, byte, byte, []byte) error) func(byte, byte, by
 	}
 }
 
-func DefaultClientCode(hand func(code string, v interface{}) error) func(code string, v interface{}) error {
-	cod := route.NewCodeMaps()
-	cod.ReadFile(MapFile)
+func DefaultClientCode(addr string, hand func(code string, v interface{}) error) func(code string, v interface{}) error {
+
+	ro := route.NewRoute(cfg.Whole.Apps)
+	cod := ro.Code()
 	recod := cod.MakeReCodeMap()
-	rego.INFO(recod)
-	c := DefaulClient(func(m1 byte, m2 byte, m3 byte, b []byte) error {
+	base.INFO(recod)
+	c := DefaulClient(addr, func(m1 byte, m2 byte, m3 byte, b []byte) error {
 		c1, c2, c3, err := cod.Map(m1, m2, m3)
 		var code string
 		if err != nil {
@@ -91,7 +103,7 @@ func DefaultClientCode(hand func(code string, v interface{}) error) func(code st
 		} else {
 			code = c1 + "." + c2 + "." + c3
 		}
-		es := rego.NewEncodeBytes(b)
+		es := base.NewEncodeBytes(b)
 		var r interface{}
 		es.DeJson(&r)
 		return hand(code, r)
@@ -99,10 +111,10 @@ func DefaultClientCode(hand func(code string, v interface{}) error) func(code st
 	return func(code string, v interface{}) error {
 		m1, m2, m3, err := recod.Map(code)
 		if err != nil {
-			rego.ERR(err)
+			base.ERR(err)
 			return err
 		}
-		es := rego.EnJson(v)
+		es := base.EnJson(v)
 		return c(m1, m2, m3, es.Bytes())
 	}
 }

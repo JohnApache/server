@@ -1,11 +1,21 @@
 package main
 
 import (
+	"flag"
+	"os"
+
 	"github.com/wzshiming/server/cfg"
 )
 
 func init() {
-	cfg.Whole = cfg.NewWholeConfig(cfg.DirConf + "server.json")
+	server := flag.String("server", "server.json", "")
+	flag.Parse()
+	if *server == "" {
+		os.Exit(0)
+	}
+
+	cfg.Master = cfg.NewServerConfig(cfg.DirConf + "master.json")
+	cfg.Whole = cfg.NewWholeConfig(cfg.DirConf + *server)
 	cfg.Self = cfg.Master
 }
 

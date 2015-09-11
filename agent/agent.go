@@ -23,35 +23,40 @@ func NewUser(sess *Session, conn Conn) *User {
 }
 
 type Agent struct {
-	maps map[uint]*User
-	msg  func(*User, []byte) error
+	maps      map[uint]*User
+	msg       func(*User, []byte) error
+	leavefunc func(*User)
 }
 
-func NewAgent(max int, msg func(*User, []byte) error) *Agent {
+func NewAgent(max int, msg func(*User, []byte) error, le func(*User)) *Agent {
 	return &Agent{
-		msg:  msg,
-		maps: make(map[uint]*User, max),
+		msg:       msg,
+		leavefunc: le,
+		maps:      make(map[uint]*User, max),
 	}
 }
 
 func (ag *Agent) Join(conn Conn) {
 	obj := NewSession()
 	user := NewUser(obj, conn)
-	ag.Loop(user)
+	ag.loops(user)
 }
 
 func (ag *Agent) JoinSync(conn Conn) *User {
 	obj := NewSession()
 	user := NewUser(obj, conn)
-	go ag.Loop(user)
+	go ag.loops(user)
 	return user
 }
 
-func (ag *Agent) Loop(user *User) {
+func (ag *Agent) loops(user *User) {
 	uniq := user.Session.ToUint()
 	ag.maps[uniq] = user
 	base.NOTICE("Join ", user.RemoteAddr())
 	ag.loop(user)
+	if ag.leavefunc != nil {
+		ag.leavefunc(user)
+	}
 	ag.leave(uniq)
 	base.NOTICE("Leave ", user.RemoteAddr())
 	user.Close()

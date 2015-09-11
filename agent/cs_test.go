@@ -47,7 +47,7 @@ func tserver(t *testing.T) {
 		user.WriteMsg(msg)
 		user.Close()
 		return nil
-	})
+	}, nil)
 	err := NewListener(7710, func(conn Conn) {
 		ag.Join(conn)
 	}).Start()

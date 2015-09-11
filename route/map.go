@@ -2,7 +2,6 @@ package route
 
 import (
 	"errors"
-	"io/ioutil"
 
 	"github.com/wzshiming/base"
 	"github.com/wzshiming/server"
@@ -50,18 +49,26 @@ func (co *CodeMaps) MakeReCodeMap() *ReCodeMaps {
 	return &re
 }
 
-func (co *CodeMaps) WriteFile(name string) {
-	ioutil.WriteFile(name, base.EnJson(co).Bytes(), 0666)
+func (co *CodeMaps) EnJson() []byte {
+	return base.EnJson(co).Bytes()
 }
 
-func (co *CodeMaps) ReadFile(name string) {
-	b, err := ioutil.ReadFile(name)
-	if err != nil {
-		base.ERR(err)
-		return
-	}
+func (co *CodeMaps) DeJson(b []byte) {
 	base.NewEncodeBytes(b).DeJson(co)
 }
+
+//func (co *CodeMaps) WriteFile(name string) {
+//	ioutil.WriteFile(name, base.EnJson(co).Bytes(), 0666)
+//}
+
+//func (co *CodeMaps) ReadFile(name string) {
+//	b, err := ioutil.ReadFile(name)
+//	if err != nil {
+//		base.ERR(err)
+//		return
+//	}
+//	base.NewEncodeBytes(b).DeJson(co)
+//}
 
 type ReCodeMaps map[string]uint32
 
