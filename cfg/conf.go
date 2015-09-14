@@ -21,6 +21,7 @@ type ServerConfig struct {
 	ClientPort int    `json:"clientport"`
 	Bin        string `json:"bin"`
 	Id         int    `json:"id"`
+	DB         string `json:"db"`
 }
 
 func (se *ServerConfig) makeId() {
