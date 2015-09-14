@@ -51,22 +51,27 @@ func NewRooms(name string) *Rooms {
 	}
 }
 
-func (ro *Rooms) JoinFromMutex(uniq uint, sess *agent.Session, head []byte) error {
-	sess.LockSession()
-	ret, err := ro.JoinFrom(uniq, sess, head)
-	sess.UnlockSession(&agent.Response{
-		Data: ret,
+func (ro *Rooms) JoinFromMutex(uniq uint, sess *agent.Session, head []byte) (err error) {
+	sess.MutexSession(func() (reply *agent.Response) {
+		var ret *base.EncodeBytes
+		ret, err = ro.JoinFrom(uniq, sess, head)
+		return &agent.Response{
+			Data: ret,
+		}
 	})
-	return err
+	return
 }
 
-func (ro *Rooms) JoinMutex(sess *agent.Session, head []byte) error {
-	sess.LockSession()
-	ret, err := ro.Join(sess, head)
-	sess.UnlockSession(&agent.Response{
-		Data: ret,
+func (ro *Rooms) JoinMutex(sess *agent.Session, head []byte) (err error) {
+	sess.MutexSession(func() (reply *agent.Response) {
+		var ret *base.EncodeBytes
+		ret, err = ro.Join(sess, head)
+		return &agent.Response{
+			Data: ret,
+		}
 	})
-	return err
+
+	return
 }
 
 func (ro *Rooms) JoinFrom(uniq uint, sess *agent.Session, head []byte) (*base.EncodeBytes, error) {
@@ -96,9 +101,10 @@ func (ro *Rooms) Join(sess *agent.Session, head []byte) (*base.EncodeBytes, erro
 }
 
 func (ro *Rooms) LeaveMutex(sess *agent.Session) {
-	sess.LockSession()
-	sess.UnlockSession(&agent.Response{
-		Data: ro.Leave(sess),
+	sess.MutexSession(func() (reply *agent.Response) {
+		return &agent.Response{
+			Data: ro.Leave(sess),
+		}
 	})
 }
 

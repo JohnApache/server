@@ -42,10 +42,12 @@ func (r *Connect) Sync(args LockRequest, reply *LockResponse) (err error) {
 
 type LockRequest struct {
 	Uniq uint
+	Hold int
 }
 
 type LockResponse struct {
 	Session *Session
+	Hold    int
 }
 
 func (r *Connect) Lock(args LockRequest, reply *LockResponse) (err error) {

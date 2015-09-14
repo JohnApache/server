@@ -10,6 +10,14 @@ type Request struct {
 	Head    []byte
 }
 
+func (re Request) Begin() {
+	re.Session.occupy = true
+}
+func (re Request) End(reply *Response) {
+	re.Session.occupy = false
+	reply.Coverage = re.Session.Data
+}
+
 type Response struct {
 	Error    string
 	Head     []byte

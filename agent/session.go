@@ -16,6 +16,7 @@ type Session struct {
 	LastPacketTime time.Time
 	Dirtycount     uint
 	SerId          int
+	occupy         bool
 }
 
 func NewSession() *Session {
@@ -63,6 +64,7 @@ func (s *Session) SyncSession() (err error) {
 	var reply LockResponse
 	err = cfg.GetServer(s.SerId).Client().Call("Connect.Sync", LockRequest{
 		Uniq: s.ToUint(),
+		Hold: cfg.SelfId,
 	}, &reply)
 	if err != nil {
 		return err
@@ -71,29 +73,61 @@ func (s *Session) SyncSession() (err error) {
 	return nil
 }
 
-func (s *Session) LockSession() (err error) {
+func (s *Session) MutexSession(f func() *Response) (err error) {
+
+	s.occupy = true
 	defer func() {
+		s.occupy = false
 		if x := recover(); x != nil {
-			err = errors.New("Session.LockSession: " + fmt.Sprintln(x))
+			err = errors.New("Session.MutexSession: " + fmt.Sprintln(x))
 		}
 	}()
+
 	var reply LockResponse
 	err = cfg.GetServer(s.SerId).Client().Call("Connect.Lock", LockRequest{
 		Uniq: s.ToUint(),
+		Hold: cfg.SelfId,
 	}, &reply)
 	if err != nil {
 		return err
 	}
 	*s = *reply.Session
-	return nil
-}
-
-func (s *Session) UnlockSession(reply *Response) error {
 	return cfg.GetServer(s.SerId).Client().Send("Connect.Unlock", UnlockRequest{
 		Uniq:  s.ToUint(),
-		Reply: reply,
+		Reply: f(),
 	})
 }
+func (s *Session) Sum(i interface{}) {
+	if s.occupy {
+		s.Data = base.SumJson(s.Data, base.EnJson(i))
+	}
+
+}
+
+//func (s *Session) LockSession() (err error) {
+//	defer func() {
+//		if x := recover(); x != nil {
+//			err = errors.New("Session.LockSession: " + fmt.Sprintln(x))
+//		}
+//	}()
+//	var reply LockResponse
+//	err = cfg.GetServer(s.SerId).Client().Call("Connect.Lock", LockRequest{
+//		Uniq: s.ToUint(),
+//		Hold: cfg.SelfId,
+//	}, &reply)
+//	if err != nil {
+//		return err
+//	}
+//	*s = *reply.Session
+//	return nil
+//}
+
+//func (s *Session) UnlockSession(reply *Response) error {
+//	return cfg.GetServer(s.SerId).Client().Send("Connect.Unlock", UnlockRequest{
+//		Uniq:  s.ToUint(),
+//		Reply: reply,
+//	})
+//}
 
 func (s *Session) Change(i interface{}) error {
 	return cfg.GetServer(s.SerId).Client().Send("Connect.Change", ChangeRequest{
