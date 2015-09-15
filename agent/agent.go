@@ -75,9 +75,9 @@ func (ag *Agent) loop(user *User) {
 		if b, err := user.Conn.ReadMsg(); err != nil {
 			return
 		} else {
-			user.Lock()
+			//user.Lock()
 			err = ag.msg(user, b)
-			user.Unlock()
+			//user.Unlock()
 			if err != nil {
 				return
 			}

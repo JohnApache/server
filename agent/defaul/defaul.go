@@ -39,12 +39,13 @@ func DefaulAgent() *agent.Agent {
 			Request: base.NewEncodeBytes(msg[4:]),
 			Head:    msg[:4],
 		}, &reply)
-		if err != nil {
-			ret := []byte(`{"error":"` + err.Error() + `"}`)
-			return user.WriteMsg(append(msg[:4], ret...))
-		}
-		return reply.Hand(user, msg[:4])
+		//		if err != nil {
+		//			return nil
+		//			ret := []byte(`{"error":"` + err.Error() + `"}`)
+		//			return user.WriteMsg(append(msg[:4], ret...))
+		//		}
 
+		return reply.Hand(user, msg[:4])
 	}, nil)
 	return ag
 }

@@ -11,10 +11,10 @@ type Request struct {
 }
 
 func (re Request) Begin() {
-	re.Session.occupy = true
+	//re.Session.occupy = true
 }
 func (re Request) End(reply *Response) {
-	re.Session.occupy = false
+	//re.Session.occupy = false
 	reply.Coverage = re.Session.Data
 }
 
@@ -38,8 +38,8 @@ func (re Response) Hand(user *User, head []byte) error {
 	} else if re.Response != nil {
 		ret = re.Response.Bytes()
 	} else {
-		//return nil
-		ret = []byte(`{"error":""}`)
+		return nil
+		//ret = []byte(`{"error":""}`)
 	}
 	if re.Head != nil && len(re.Head) != 0 {
 		ret = append(re.Head, ret...)

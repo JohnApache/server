@@ -9,6 +9,24 @@ import (
 	"github.com/wzshiming/server/cfg"
 )
 
+type sessions map[int]map[uint]*Session
+
+func newSessions() sessions {
+	return sessions{}
+}
+
+func (s sessions) Sync(se *Session) {
+	if s[se.SerId] == nil {
+		s[se.SerId] = map[uint]*Session{}
+	}
+	if s[se.SerId][se.ToUint()] == nil || s[se.SerId][se.ToUint()].LastPacketTime.UnixNano() < se.LastPacketTime.UnixNano() {
+		s[se.SerId][se.ToUint()] = se
+	} else {
+		se = s[se.SerId][se.ToUint()]
+	}
+
+}
+
 type Session struct {
 	base.Unique
 	Data           *base.EncodeBytes
@@ -16,7 +34,7 @@ type Session struct {
 	LastPacketTime time.Time
 	Dirtycount     uint
 	SerId          int
-	occupy         bool
+	occupy         chan func()
 }
 
 func NewSession() *Session {
@@ -41,6 +59,57 @@ func (s *Session) Push(reply interface{}) (err error) {
 	return s.Send(&Response{
 		Response: base.EnJson(reply),
 	})
+}
+
+func (s *Session) Mutex(f func()) {
+	if s.occupy == nil {
+		s.Refresh()
+		var lockreply LockResponse
+		err := cfg.GetServer(s.SerId).Client().Call("Connect.Lock", LockRequest{
+			Uniq: s.ToUint(),
+			Hold: cfg.SelfId,
+		}, &lockreply)
+		if err != nil {
+			return
+		}
+		*s = *lockreply.Session
+
+		var unlockreply Response
+		defer func() {
+			unlockreply.Coverage = s.Data
+			err = cfg.GetServer(s.SerId).Client().Send("Connect.Unlock", UnlockRequest{
+				Uniq:  s.ToUint(),
+				Reply: &unlockreply,
+			})
+		}()
+	}
+	s.Occupy(f)
+}
+
+func (s *Session) Occupy(f func()) {
+	if s.occupy == nil {
+		s.occupy = make(chan func(), 10)
+		s.occupy <- f
+		defer func() {
+			close(s.occupy)
+			s.occupy = nil
+		}()
+		for {
+			select {
+			case v, ok := <-s.occupy:
+				if ok {
+					v()
+				} else {
+					return
+				}
+			default:
+				return
+			}
+		}
+	} else {
+		s.occupy <- f
+	}
+	return
 }
 
 func (s *Session) Send(reply *Response) (err error) {
@@ -75,9 +144,9 @@ func (s *Session) SyncSession() (err error) {
 
 func (s *Session) MutexSession(f func() *Response) (err error) {
 
-	s.occupy = true
+	//s.occupy = true
 	defer func() {
-		s.occupy = false
+		//s.occupy = false
 		if x := recover(); x != nil {
 			err = errors.New("Session.MutexSession: " + fmt.Sprintln(x))
 		}
@@ -98,9 +167,9 @@ func (s *Session) MutexSession(f func() *Response) (err error) {
 	})
 }
 func (s *Session) Sum(i interface{}) {
-	if s.occupy {
-		s.Data = base.SumJson(s.Data, base.EnJson(i))
-	}
+	//if s.occupy {
+	s.Data = base.SumJson(s.Data, base.EnJson(i))
+	//}
 
 }
 

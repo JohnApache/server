@@ -51,83 +51,47 @@ func NewRooms(name string) *Rooms {
 	}
 }
 
-func (ro *Rooms) JoinFromMutex(uniq uint, sess *agent.Session, head []byte) (err error) {
-	sess.MutexSession(func() (reply *agent.Response) {
-		var ret *base.EncodeBytes
-		ret, err = ro.JoinFrom(uniq, sess, head)
-		return &agent.Response{
-			Data: ret,
+func (ro *Rooms) JoinFrom(uniq uint, sess *agent.Session, head []byte) (err error) {
+	sess.Mutex(func() {
+		var r datafmt
+		sess.Data.DeJson(&r)
+		if r.Rooms == nil {
+			r.Rooms = make(map[string]data)
 		}
+		if se := r.Rooms[ro.name].ID; se != 0 {
+			err = errors.New("Rooms.Join: already join")
+			return
+		}
+		if un := ro.list[uniq]; un != nil {
+			err = errors.New("Rooms.Join: repetition join")
+			return
+		}
+		r.Rooms[ro.name] = data{
+			ID:   uniq,
+			Head: head,
+		}
+		ro.list[uniq] = sess
+		ret := base.EnJson(r)
+		sess.Data = base.SumJson(sess.Data, ret)
 	})
 	return
 }
 
-func (ro *Rooms) JoinMutex(sess *agent.Session, head []byte) (err error) {
-	sess.MutexSession(func() (reply *agent.Response) {
-		var ret *base.EncodeBytes
-		ret, err = ro.Join(sess, head)
-		return &agent.Response{
-			Data: ret,
-		}
-	})
-
-	return
-}
-
-func (ro *Rooms) JoinFrom(uniq uint, sess *agent.Session, head []byte) (*base.EncodeBytes, error) {
-	var r datafmt
-	sess.Data.DeJson(&r)
-	if r.Rooms == nil {
-		r.Rooms = make(map[string]data)
-	}
-	if se := r.Rooms[ro.name].ID; se != 0 {
-		return nil, errors.New("Rooms.Join: already join")
-	}
-	if un := ro.list[uniq]; un != nil {
-		return nil, errors.New("Rooms.Join: repetition join")
-	}
-	r.Rooms[ro.name] = data{
-		ID:   uniq,
-		Head: head,
-	}
-	ro.list[uniq] = sess
-	ret := base.EnJson(r)
-	sess.Data = base.SumJson(sess.Data, ret)
-	return ret, nil
-}
-
-func (ro *Rooms) Join(sess *agent.Session, head []byte) (*base.EncodeBytes, error) {
+func (ro *Rooms) Join(sess *agent.Session, head []byte) error {
 	return ro.JoinFrom(sess.ToUint(), sess, head)
 }
 
-func (ro *Rooms) LeaveMutex(sess *agent.Session) {
-	sess.MutexSession(func() (reply *agent.Response) {
-		return &agent.Response{
-			Data: ro.Leave(sess),
-		}
+func (ro *Rooms) Leave(sess *agent.Session) {
+	sess.Mutex(func() {
+		uniq := ro.Uniq(sess)
+		var r datafmt
+		sess.Data.DeJson(&r)
+		delete(r.Rooms, ro.name)
+		delete(ro.list, uniq)
+		re := base.EnJson(r)
+		sess.Data = base.SumJson(sess.Data, re)
 	})
-}
-
-func (ro *Rooms) Leave(sess *agent.Session) *base.EncodeBytes {
-	uniq := ro.Uniq(sess)
-	var r datafmt
-	sess.Data.DeJson(&r)
-	delete(r.Rooms, ro.name)
-	delete(ro.list, uniq)
-	re := base.EnJson(r)
-	sess.Data = base.SumJson(sess.Data, re)
-	return re
-}
-
-func (ro *Rooms) SyncMutex(sess *agent.Session) *agent.Session {
-	se := ro.Sync(sess)
-	if se != nil {
-		if err := se.SyncSession(); err != nil {
-			base.ERR(err)
-			ro.Leave(se)
-		}
-	}
-	return se
+	return
 }
 
 func (ro *Rooms) Uniq(sess *agent.Session) uint {
@@ -168,8 +132,8 @@ func (ro *Rooms) Group(name string, sesss ...*agent.Session) (r *Rooms) {
 	for _, v := range sesss {
 		if i := ro.Sync(v); i != nil {
 			head := ro.Head(i)
-			ro.LeaveMutex(i)
-			r.JoinMutex(i, head)
+			ro.Leave(i)
+			r.Join(i, head)
 		}
 	}
 	return

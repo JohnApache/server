@@ -37,7 +37,7 @@ func (r *Connect) Sync(args LockRequest, reply *LockResponse) (err error) {
 		reply.Session = &conn.Session
 		return nil
 	}
-	return errors.New("Connect.Lock: use of closed network connection")
+	return errors.New("Connect.Sync: use of closed network connection")
 }
 
 type LockRequest struct {
@@ -47,7 +47,6 @@ type LockRequest struct {
 
 type LockResponse struct {
 	Session *Session
-	Hold    int
 }
 
 func (r *Connect) Lock(args LockRequest, reply *LockResponse) (err error) {
