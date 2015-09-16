@@ -10,28 +10,20 @@ type Request struct {
 	Head    []byte
 }
 
-func (re Request) Begin() {
-	//re.Session.occupy = true
-}
-func (re Request) End(reply *Response) {
-	//re.Session.occupy = false
-	reply.Coverage = re.Session.Data
-}
-
 type Response struct {
 	Error    string
-	Head     []byte
-	Data     *base.EncodeBytes
 	Coverage *base.EncodeBytes
+	Head     []byte
 	Response *base.EncodeBytes
+	//Data     *base.EncodeBytes
+
 }
 
 func (re Response) Hand(user *User, head []byte) error {
 	var ret []byte
 	if re.Coverage != nil {
+		//base.INFO(string(re.Coverage.Bytes()))
 		user.Data = re.Coverage
-	} else if re.Data != nil {
-		user.Data = base.SumJson(user.Data, re.Data)
 	}
 	if re.Error != "" {
 		ret = []byte(`{"error":"` + re.Error + `"}`)

@@ -20,11 +20,13 @@ type DefCfg struct {
 
 func DefaulAgent() *agent.Agent {
 	ro := route.NewRoute(cfg.Whole.Apps)
-
+	code := ro.Code()
+	recode := code.MakeReCodeMap()
 	dj := base.EnJson(DefCfg{
-		CodeMaps: ro.Code(),
+		CodeMaps: code,
 		Agents:   cfg.Whole.Agents,
 	}).Bytes()
+	base.INFO(recode)
 	ag := agent.NewAgent(1024, func(user *agent.User, msg []byte) (err error) {
 
 		defer base.PanicErr(&err)
@@ -46,7 +48,14 @@ func DefaulAgent() *agent.Agent {
 		//		}
 
 		return reply.Hand(user, msg[:4])
-	}, nil)
+	}, func(user *agent.User) {
+		//		sess := &user.Session
+		//		rooms := agent.GetFromRooms(sess)
+		//		for k, v := range rooms {
+
+		//		}
+		//recode
+	})
 	return ag
 }
 

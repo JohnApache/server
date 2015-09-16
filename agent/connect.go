@@ -52,6 +52,7 @@ type LockResponse struct {
 func (r *Connect) Lock(args LockRequest, reply *LockResponse) (err error) {
 	if conn := r.agent.Get(args.Uniq); conn != nil {
 		conn.Lock()
+		conn.Session.Refresh()
 		reply.Session = &conn.Session
 		return nil
 	}

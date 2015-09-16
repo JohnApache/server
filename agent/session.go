@@ -11,20 +11,27 @@ import (
 
 type sessions map[int]map[uint]*Session
 
-func newSessions() sessions {
-	return sessions{}
-}
+var sesss = sessions{}
 
 func (s sessions) Sync(se *Session) {
 	if s[se.SerId] == nil {
 		s[se.SerId] = map[uint]*Session{}
 	}
-	if s[se.SerId][se.ToUint()] == nil || s[se.SerId][se.ToUint()].LastPacketTime.UnixNano() < se.LastPacketTime.UnixNano() {
-		s[se.SerId][se.ToUint()] = se
+	uniq := se.ToUint()
+	s[se.SerId][uniq] = se
+	if s[se.SerId][uniq] == nil || s[se.SerId][uniq].LastPacketTime.UnixNano() < se.LastPacketTime.UnixNano() {
+		s[se.SerId][uniq] = se
 	} else {
-		se = s[se.SerId][se.ToUint()]
+		n := s[se.SerId][uniq]
+		*se = *n
 	}
+}
 
+func (s sessions) Leave(se *Session) {
+	if s[se.SerId] == nil {
+		return
+	}
+	delete(s[se.SerId], se.ToUint())
 }
 
 type Session struct {
@@ -56,14 +63,30 @@ func (s *Session) Refresh() {
 }
 
 func (s *Session) Push(reply interface{}) (err error) {
+	return s.PushForm(reply, nil)
+}
+
+func (s *Session) PushForm(reply interface{}, hand []byte) (err error) {
 	return s.Send(&Response{
 		Response: base.EnJson(reply),
+		Head:     hand,
 	})
+}
+
+func (s *Session) Already(args Request, reply *Response, f func()) {
+	if s.occupy == nil {
+		*s = *args.Session
+		//sesss.Sync(args.Session)
+		sesss.Sync(s)
+		defer func() {
+			reply.Coverage = s.Data
+		}()
+	}
+	s.occupys(f)
 }
 
 func (s *Session) Mutex(f func()) {
 	if s.occupy == nil {
-		s.Refresh()
 		var lockreply LockResponse
 		err := cfg.GetServer(s.SerId).Client().Call("Connect.Lock", LockRequest{
 			Uniq: s.ToUint(),
@@ -72,8 +95,9 @@ func (s *Session) Mutex(f func()) {
 		if err != nil {
 			return
 		}
-		*s = *lockreply.Session
 
+		*s = *lockreply.Session
+		sesss.Sync(s)
 		var unlockreply Response
 		defer func() {
 			unlockreply.Coverage = s.Data
@@ -83,12 +107,12 @@ func (s *Session) Mutex(f func()) {
 			})
 		}()
 	}
-	s.Occupy(f)
+	s.occupys(f)
 }
 
-func (s *Session) Occupy(f func()) {
+func (s *Session) occupys(f func()) {
 	if s.occupy == nil {
-		s.occupy = make(chan func(), 10)
+		s.occupy = make(chan func(), 1)
 		s.occupy <- f
 		defer func() {
 			close(s.occupy)

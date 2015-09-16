@@ -42,12 +42,12 @@ func (ag *Agent) Join(conn Conn) {
 	ag.loops(user)
 }
 
-func (ag *Agent) JoinSync(conn Conn) *User {
-	obj := NewSession()
-	user := NewUser(obj, conn)
-	go ag.loops(user)
-	return user
-}
+//func (ag *Agent) JoinSync(conn Conn) *User {
+//	obj := NewSession()
+//	user := NewUser(obj, conn)
+//	go ag.loops(user)
+//	return user
+//}
 
 func (ag *Agent) loops(user *User) {
 	uniq := user.Session.ToUint()
@@ -75,12 +75,12 @@ func (ag *Agent) loop(user *User) {
 		if b, err := user.Conn.ReadMsg(); err != nil {
 			return
 		} else {
-			//user.Lock()
+			user.Lock()
 			err = ag.msg(user, b)
-			//user.Unlock()
-			if err != nil {
-				return
-			}
+			user.Unlock()
+			//			if err != nil {
+			//				return
+			//			}
 		}
 	}
 }
