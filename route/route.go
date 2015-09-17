@@ -3,7 +3,6 @@ package route
 import (
 	"github.com/wzshiming/base"
 	"github.com/wzshiming/server"
-	"github.com/wzshiming/server/agent"
 	"github.com/wzshiming/server/cfg"
 )
 
@@ -45,7 +44,7 @@ func (ro *Route) Register(c cfg.ServerConfig) {
 	ro.connmaps[c.Type] = append(ro.connmaps[c.Type], conn)
 }
 
-func (ro *Route) CallCode(c1, c2, c3 byte, args agent.Request, reply *agent.Response) error {
+func (ro *Route) CallCode(c1, c2, c3 byte, args, reply interface{}) error {
 	m1, m2, m3, err := ro.maps.Map(c1, c2, c3)
 	if err != nil {
 		return err
@@ -53,7 +52,7 @@ func (ro *Route) CallCode(c1, c2, c3 byte, args agent.Request, reply *agent.Resp
 	return ro.Call(m1, m2, m3, args, reply)
 }
 
-func (ro *Route) Call(m1, m2, m3 string, args agent.Request, reply *agent.Response) (err error) {
+func (ro *Route) Call(m1, m2, m3 string, args, reply interface{}) (err error) {
 	defer base.PanicErr(&err, "Route.Call: index out of range")
 
 	return ro.connmaps[m1][0].Call(m2+"."+m3, args, reply)

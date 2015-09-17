@@ -49,6 +49,10 @@ func DefaulAgent() *agent.Agent {
 
 		return reply.Hand(user, msg[:4])
 	}, func(user *agent.User) {
+		for _, v := range *code {
+			sess := &user.Session
+			ro.Call(v.Name, "Leave", "User", sess, nil)
+		}
 		//		sess := &user.Session
 		//		rooms := agent.GetFromRooms(sess)
 		//		for k, v := range rooms {
