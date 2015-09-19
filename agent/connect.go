@@ -1,10 +1,6 @@
 package agent
 
-import (
-	"errors"
-
-	"github.com/wzshiming/base"
-)
+import "errors"
 
 type Connect struct {
 	agent *Agent
@@ -32,13 +28,13 @@ func (r *Connect) Push(args PushRequest, reply *int) (err error) {
 	return errors.New("Connect.Push: use of closed network connection")
 }
 
-func (r *Connect) Sync(args LockRequest, reply *LockResponse) (err error) {
-	if conn := r.agent.Get(args.Uniq); conn != nil {
-		reply.Session = &conn.Session
-		return nil
-	}
-	return errors.New("Connect.Sync: use of closed network connection")
-}
+//func (r *Connect) Sync(args LockRequest, reply *LockResponse) (err error) {
+//	if conn := r.agent.Get(args.Uniq); conn != nil {
+//		reply.Session = conn.Session
+//		return nil
+//	}
+//	return errors.New("Connect.Sync: use of closed network connection")
+//}
 
 type LockRequest struct {
 	Uniq uint
@@ -52,8 +48,8 @@ type LockResponse struct {
 func (r *Connect) Lock(args LockRequest, reply *LockResponse) (err error) {
 	if conn := r.agent.Get(args.Uniq); conn != nil {
 		conn.Lock()
-		conn.Session.Refresh()
-		reply.Session = &conn.Session
+		conn.Session.refresh()
+		reply.Session = conn.Session
 		return nil
 	}
 	return errors.New("Connect.Lock: use of closed network connection")
@@ -75,15 +71,15 @@ func (r *Connect) Unlock(args UnlockRequest, reply *int) (err error) {
 	return errors.New("Connect.Unlock: use of closed network connection")
 }
 
-type ChangeRequest struct {
-	Data *base.EncodeBytes
-	Uniq uint
-}
+//type ChangeRequest struct {
+//	Data *base.EncodeBytes
+//	Uniq uint
+//}
 
-func (r *Connect) Change(args ChangeRequest, reply *int) (err error) {
-	if conn := r.agent.Get(args.Uniq); conn != nil {
-		conn.Data = base.SumJson(conn.Data, args.Data)
-		return nil
-	}
-	return errors.New("Connect.Change: use of closed network connection")
-}
+//func (r *Connect) Change(args ChangeRequest, reply *int) (err error) {
+//	if conn := r.agent.Get(args.Uniq); conn != nil {
+//		conn.Session.Data = base.SumJson(conn.Session.Data, args.Data)
+//		return nil
+//	}
+//	return errors.New("Connect.Change: use of closed network connection")
+//}

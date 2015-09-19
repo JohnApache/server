@@ -29,23 +29,17 @@ func DefaulAgent() *agent.Agent {
 	base.INFO(recode)
 	ag := agent.NewAgent(1024, func(user *agent.User, msg []byte) (err error) {
 
-		defer base.PanicErr(&err)
+		//defer base.PanicErr(&err)
 		var reply agent.Response
 		user.SetDeadline(time.Now().Add(time.Second * 60 * 60))
-		user.Refresh()
 		if msg[0] == 0 && msg[1] == 0 && msg[2] == 0 && msg[3] == 0 {
 			return user.WriteMsg(append(msg[:4], dj...))
 		}
 		err = ro.CallCode(msg[1], msg[2], msg[3], agent.Request{
-			Session: &user.Session,
+			Session: user.Session,
 			Request: base.NewEncodeBytes(msg[4:]),
 			Head:    msg[:4],
 		}, &reply)
-		//		if err != nil {
-		//			return nil
-		//			ret := []byte(`{"error":"` + err.Error() + `"}`)
-		//			return user.WriteMsg(append(msg[:4], ret...))
-		//		}
 
 		return reply.Hand(user, msg[:4])
 	}, func(user *agent.User) {
@@ -53,12 +47,6 @@ func DefaulAgent() *agent.Agent {
 			sess := &user.Session
 			ro.Call(v.Name, "Leave", "User", sess, nil)
 		}
-		//		sess := &user.Session
-		//		rooms := agent.GetFromRooms(sess)
-		//		for k, v := range rooms {
-
-		//		}
-		//recode
 	})
 	return ag
 }

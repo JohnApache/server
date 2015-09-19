@@ -13,18 +13,23 @@ type sessions map[int]map[uint]*Session
 
 var sesss = sessions{}
 
-func (s sessions) Sync(se *Session) {
+func (s sessions) Sync(se *Session) *Session {
+
 	if s[se.SerId] == nil {
 		s[se.SerId] = map[uint]*Session{}
+
 	}
 	uniq := se.ToUint()
-	s[se.SerId][uniq] = se
-	if s[se.SerId][uniq] == nil || s[se.SerId][uniq].LastPacketTime.UnixNano() < se.LastPacketTime.UnixNano() {
+	sess := s[se.SerId][uniq]
+	if sess == nil {
 		s[se.SerId][uniq] = se
-	} else {
-		n := s[se.SerId][uniq]
-		*se = *n
+		sess = s[se.SerId][uniq]
+
+	} else if sess != se {
+		sess.copys(se)
 	}
+
+	return sess
 }
 
 func (s sessions) Leave(se *Session) {
@@ -37,11 +42,11 @@ func (s sessions) Leave(se *Session) {
 type Session struct {
 	base.Unique
 	Data           *base.EncodeBytes
+	Rooms          *base.EncodeBytes
 	ConnectTime    time.Time
 	LastPacketTime time.Time
 	Dirtycount     uint
 	SerId          int
-	occupy         chan func()
 }
 
 func NewSession() *Session {
@@ -50,16 +55,32 @@ func NewSession() *Session {
 		LastPacketTime: time.Now(),
 		Dirtycount:     0,
 		SerId:          cfg.SelfId,
+		Data:           base.EnJson(nil),
+		Rooms:          base.EnJson(nil),
 	}
 	s.InitUint()
-	s.Data = base.EnJson(map[string]uint{
-		"none": 0,
-	})
 	return &s
 }
-
-func (s *Session) Refresh() {
+func (s *Session) copys(e *Session) {
+	s.Data = e.Data
+	s.Rooms = e.Rooms
+	s.ConnectTime = e.ConnectTime
+	s.LastPacketTime = e.LastPacketTime
+	s.Dirtycount = e.Dirtycount
+}
+func (s *Session) refresh() {
 	s.LastPacketTime = time.Now()
+}
+func (s *Session) Send(reply *Response) (err error) {
+	defer func() {
+		if x := recover(); x != nil {
+			err = errors.New("Session.Send: " + fmt.Sprintln(x))
+		}
+	}()
+	return cfg.GetServer(s.SerId).Client().Send("Connect.Push", PushRequest{
+		Uniq:  s.ToUint(),
+		Reply: reply,
+	})
 }
 
 func (s *Session) Push(reply interface{}) (err error) {
@@ -73,158 +94,55 @@ func (s *Session) PushForm(reply interface{}, hand []byte) (err error) {
 	})
 }
 
+func (s *Session) Sync() *Session {
+	return sesss.Sync(s)
+
+}
+
 func (s *Session) Already(args Request, reply *Response, f func()) {
-	if s.occupy == nil {
-		*s = *args.Session
-		//sesss.Sync(args.Session)
-		sesss.Sync(s)
-		defer func() {
-			reply.Coverage = s.Data
-		}()
-	}
-	s.occupys(f)
+	f()
+	reply.Session = s
 }
 
 func (s *Session) Mutex(f func()) {
-	if s.occupy == nil {
-		var lockreply LockResponse
-		err := cfg.GetServer(s.SerId).Client().Call("Connect.Lock", LockRequest{
-			Uniq: s.ToUint(),
-			Hold: cfg.SelfId,
-		}, &lockreply)
-		if err != nil {
-			return
-		}
+	var lockreply LockResponse
+	err := cfg.GetServer(s.SerId).Client().Call("Connect.Lock", LockRequest{
+		Uniq: s.ToUint(),
+		Hold: cfg.SelfId,
+	}, &lockreply)
+	if err != nil {
+		return
+	}
 
-		*s = *lockreply.Session
-		sesss.Sync(s)
+	s = sesss.Sync(lockreply.Session)
+	defer func() {
 		var unlockreply Response
-		defer func() {
-			unlockreply.Coverage = s.Data
-			err = cfg.GetServer(s.SerId).Client().Send("Connect.Unlock", UnlockRequest{
-				Uniq:  s.ToUint(),
-				Reply: &unlockreply,
-			})
-		}()
-	}
-	s.occupys(f)
+		unlockreply.Session = s
+		cfg.GetServer(s.SerId).Client().Send("Connect.Unlock", UnlockRequest{
+			Uniq:  s.ToUint(),
+			Reply: &unlockreply,
+		})
+	}()
+	f()
 }
 
-func (s *Session) occupys(f func()) {
-	if s.occupy == nil {
-		s.occupy = make(chan func(), 1)
-		s.occupy <- f
-		defer func() {
-			close(s.occupy)
-			s.occupy = nil
-		}()
-		for {
-			select {
-			case v, ok := <-s.occupy:
-				if ok {
-					v()
-				} else {
-					return
-				}
-			default:
-				return
-			}
-		}
-	} else {
-		s.occupy <- f
-	}
+func (s *Session) NonSync(f func()) {
+	f()
+}
+
+func (s *Session) SumData(i interface{}) {
+	s.Data.SumJson(base.EnJson(i))
+}
+
+func (s *Session) DeData(i interface{}) {
+	s.Data.DeJson(i)
+}
+
+func (s *Session) EnData(i interface{}) {
+	s.Data.EnJson(i)
+}
+
+func (s *Session) GetRoomsData() (r roomsData) {
+	s.Rooms.DeJson(&r)
 	return
-}
-
-func (s *Session) Send(reply *Response) (err error) {
-	defer func() {
-		if x := recover(); x != nil {
-			err = errors.New("Session.Send: " + fmt.Sprintln(x))
-		}
-	}()
-	return cfg.GetServer(s.SerId).Client().Send("Connect.Push", PushRequest{
-		Uniq:  s.ToUint(),
-		Reply: reply,
-	})
-}
-
-func (s *Session) SyncSession() (err error) {
-	defer func() {
-		if x := recover(); x != nil {
-			err = errors.New("Session.SyncSession: " + fmt.Sprintln(x))
-		}
-	}()
-	var reply LockResponse
-	err = cfg.GetServer(s.SerId).Client().Call("Connect.Sync", LockRequest{
-		Uniq: s.ToUint(),
-		Hold: cfg.SelfId,
-	}, &reply)
-	if err != nil {
-		return err
-	}
-	*s = *reply.Session
-	return nil
-}
-
-func (s *Session) MutexSession(f func() *Response) (err error) {
-
-	//s.occupy = true
-	defer func() {
-		//s.occupy = false
-		if x := recover(); x != nil {
-			err = errors.New("Session.MutexSession: " + fmt.Sprintln(x))
-		}
-	}()
-
-	var reply LockResponse
-	err = cfg.GetServer(s.SerId).Client().Call("Connect.Lock", LockRequest{
-		Uniq: s.ToUint(),
-		Hold: cfg.SelfId,
-	}, &reply)
-	if err != nil {
-		return err
-	}
-	*s = *reply.Session
-	return cfg.GetServer(s.SerId).Client().Send("Connect.Unlock", UnlockRequest{
-		Uniq:  s.ToUint(),
-		Reply: f(),
-	})
-}
-func (s *Session) Sum(i interface{}) {
-	//if s.occupy {
-	s.Data = base.SumJson(s.Data, base.EnJson(i))
-	//}
-
-}
-
-//func (s *Session) LockSession() (err error) {
-//	defer func() {
-//		if x := recover(); x != nil {
-//			err = errors.New("Session.LockSession: " + fmt.Sprintln(x))
-//		}
-//	}()
-//	var reply LockResponse
-//	err = cfg.GetServer(s.SerId).Client().Call("Connect.Lock", LockRequest{
-//		Uniq: s.ToUint(),
-//		Hold: cfg.SelfId,
-//	}, &reply)
-//	if err != nil {
-//		return err
-//	}
-//	*s = *reply.Session
-//	return nil
-//}
-
-//func (s *Session) UnlockSession(reply *Response) error {
-//	return cfg.GetServer(s.SerId).Client().Send("Connect.Unlock", UnlockRequest{
-//		Uniq:  s.ToUint(),
-//		Reply: reply,
-//	})
-//}
-
-func (s *Session) Change(i interface{}) error {
-	return cfg.GetServer(s.SerId).Client().Send("Connect.Change", ChangeRequest{
-		Uniq: s.ToUint(),
-		Data: base.EnJson(i),
-	})
 }

@@ -11,6 +11,9 @@ func NewLeave(funcs func(*Session)) *Leave {
 }
 
 func (le *Leave) User(s *Session, i *int) error {
-	le.funcs(s)
+	if le.funcs != nil {
+		le.funcs(s)
+	}
+	sessionLeave(s)
 	return nil
 }

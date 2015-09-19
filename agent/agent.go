@@ -8,15 +8,15 @@ import (
 )
 
 type User struct {
-	Session
 	Conn
 	sync.RWMutex
+	Session *Session
 	outtime time.Duration
 }
 
 func NewUser(sess *Session, conn Conn) *User {
 	return &User{
-		Session: *sess,
+		Session: sess,
 		Conn:    conn,
 		outtime: time.Second * 10,
 	}
@@ -76,6 +76,7 @@ func (ag *Agent) loop(user *User) {
 			return
 		} else {
 			user.Lock()
+			user.Session.refresh()
 			err = ag.msg(user, b)
 			user.Unlock()
 			//			if err != nil {

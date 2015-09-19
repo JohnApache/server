@@ -6,18 +6,26 @@ type rooms map[string]*Room
 
 var ros = rooms{}
 
-func SessionLeave(s *Session) {
-	s.Mutex(func() {
-		for _, v := range ros {
-			v.Leave(s)
+func sessionLeave(s *Session) {
+	s = s.Sync()
+	s.NonSync(func() {
+		for k, v := range s.GetRoomsData() {
+			if ros[k] != nil {
+				ros[k].LeaveFrom(v.Id)
+			} else {
+				base.ERR(ros)
+			}
 		}
+
 		sesss.Leave(s)
 	})
 }
 
 type Room struct {
-	name string
-	list map[uint]*Session
+	name   string
+	user   map[uint]*Session
+	parent *Room
+	child  map[string]*Room
 }
 
 type data struct {
@@ -25,66 +33,50 @@ type data struct {
 	Head []byte
 }
 
-type datafmt struct {
-	Rooms map[string]data `json:"__Rooms__"`
-}
+type roomsData map[string]data
 
-func GetFromRooms(sess *Session) (r datafmt) {
-	sess.Data.DeJson(&r)
-	return
-}
-
-func GetFromRoom(sess *Session, name string) uint {
-	return GetFromRooms(sess).Rooms[name].Id
-}
-
-func GetFromHead(sess *Session, name string) []byte {
-	return GetFromRooms(sess).Rooms[name].Head
-}
-
-func SetFromHead(sess *Session, name string, head []byte) {
-	var r datafmt
-	sess.Data.DeJson(&r)
-	r.Rooms[name] = data{
-		Id:   r.Rooms[name].Id,
-		Head: head,
+func newRoomChild(name string, parent *Room) *Room {
+	if parent != nil {
+		name = parent.name + "." + name
 	}
-	sess.Data = base.SumJson(sess.Data, base.EnJson(r))
-}
-
-func NewRoom(name string) *Room {
 	if ros[name] != nil {
 		return nil
 	}
 	r := &Room{
-		name: name,
-		list: make(map[uint]*Session),
+		parent: parent,
+		name:   name,
+		user:   map[uint]*Session{},
+		child:  map[string]*Room{},
 	}
 	ros[name] = r
 	return r
 }
 
-func (ro *Room) Repeal() {
-	ro.ForEach(ro.Leave)
+func NewRoom(name string) *Room {
+	return newRoomChild(name, nil)
+}
+
+func (ro *Room) Close() {
+	ro.ForEach(func(sess *Session) {
+		ro.Leave(sess)
+	})
 	ros[ro.name] = nil
 }
 
 func (ro *Room) JoinFrom(uniq uint, sess *Session, head []byte) {
-	sess.Mutex(func() {
-		var r datafmt
-		sess.Data.DeJson(&r)
-		if r.Rooms == nil {
-			r.Rooms = make(map[string]data)
-		}
 
-		r.Rooms[ro.name] = data{
-			Id:   uniq,
-			Head: head,
-		}
-		ro.list[uniq] = sess
-		ret := base.EnJson(r)
-		sess.Data = base.SumJson(sess.Data, ret)
-	})
+	var r roomsData
+	sess.Rooms.DeJson(&r)
+	if r == nil {
+		r = roomsData{}
+	}
+	r[ro.name] = data{
+		Id:   uniq,
+		Head: head,
+	}
+	sess.Rooms.EnJson(r)
+	ro.user[uniq] = sess
+
 	return
 }
 
@@ -92,29 +84,82 @@ func (ro *Room) Join(sess *Session, head []byte) {
 	ro.JoinFrom(sess.ToUint(), sess, head)
 }
 
-func (ro *Room) Leave(sess *Session) {
-	sess.Mutex(func() {
-		uniq := ro.Uniq(sess)
-		var r datafmt
-		sess.Data.DeJson(&r)
-		delete(r.Rooms, ro.name)
-		delete(ro.list, uniq)
-		re := base.EnJson(r)
-		sess.Data = base.SumJson(sess.Data, re)
-	})
+func (ro *Room) LeaveFrom(uniq uint) (d data) {
+	sess := ro.user[uniq]
+	if sess == nil {
+		return
+	}
+	delete(ro.user, uniq)
+	var r roomsData
+	sess.Rooms.DeJson(&r)
+	d = r[ro.name]
+	delete(r, ro.name)
+	sess.Rooms.EnJson(r)
+
+	return
+}
+
+func (ro *Room) Leave(sess *Session) data {
+	return ro.LeaveFrom(ro.Uniq(sess))
+}
+
+func (ro *Room) GetChild(name string) (nr *Room) {
+	nr = ro.child[name]
+	if nr == nil {
+		nr = newRoomChild(name, ro)
+		ro.child[name] = nr
+	}
+	return
+}
+
+func (ro *Room) ToChild(sess *Session, name string) (nr *Room) {
+
+	d := ro.Leave(sess)
+	if d.Id != 0 {
+		nr = ro.GetChild(name)
+		nr.JoinFrom(d.Id, sess, d.Head)
+	}
+
+	return
+}
+
+func (ro *Room) GetParent() *Room {
+	return ro.parent
+}
+
+func (ro *Room) ToParent(sess *Session) (nr *Room) {
+
+	d := ro.Leave(sess)
+	if nr = ro.parent; nr != nil && d.Id != 0 {
+		nr.JoinFrom(d.Id, sess, d.Head)
+	}
+
 	return
 }
 
 func (ro *Room) Uniq(sess *Session) uint {
-	return GetFromRoom(sess, ro.name)
+	return sess.GetRoomsData()[ro.name].Id
 }
 
 func (ro *Room) Head(sess *Session) []byte {
-	return GetFromHead(sess, ro.name)
+	return sess.GetRoomsData()[ro.name].Head
 }
 
 func (ro *Room) SetHead(sess *Session, head []byte) {
-	SetFromHead(sess, ro.name, head)
+	var r roomsData
+	sess.Rooms.DeJson(&r)
+	r[ro.name] = data{
+		Id:   r[ro.name].Id,
+		Head: head,
+	}
+	sess.Rooms.EnJson(r)
+}
+
+func (ro *Room) IsExist(sess *Session) bool {
+	if se := ro.Uniq(sess); se != 0 {
+		return true
+	}
+	return false
 }
 
 func (ro *Room) Sync(sess *Session) *Session {
@@ -125,15 +170,15 @@ func (ro *Room) Sync(sess *Session) *Session {
 }
 
 func (ro *Room) Get(uniq uint) *Session {
-	return ro.list[uniq]
+	return ro.user[uniq]
 }
 
 func (ro *Room) Len() int {
-	return len(ro.list)
+	return len(ro.user)
 }
 
 func (ro *Room) ForEach(fun func(*Session)) {
-	for _, v := range ro.list {
+	for _, v := range ro.user {
 		fun(v)
 	}
 }
@@ -151,7 +196,7 @@ func (ro *Room) Group(name string, sesss ...*Session) (r *Room) {
 }
 
 func (ro *Room) GroupFromSize(size int) (sesss []*Session) {
-	for _, v := range ro.list {
+	for _, v := range ro.user {
 		if size == len(sesss) {
 			return
 		}
@@ -179,20 +224,14 @@ func (ro *Room) Send(reply *Response, sess *Session) (err error) {
 	return
 }
 
-func (ro *Room) BroadcastPush(reply interface{}, fail func(*Session)) {
+func (ro *Room) BroadcastPush(reply interface{}) {
 	ro.Broadcast(&Response{
 		Response: base.EnJson(reply),
-	},
-		fail,
-	)
+	})
 }
 
-func (ro *Room) Broadcast(reply *Response, fail func(*Session)) {
+func (ro *Room) Broadcast(reply *Response) {
 	ro.ForEach(func(sess *Session) {
-		if err := ro.Send(reply, sess); err != nil {
-			if fail != nil {
-				fail(sess)
-			}
-		}
+		ro.Send(reply, sess)
 	})
 }
