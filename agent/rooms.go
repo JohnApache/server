@@ -9,9 +9,9 @@ var ros = rooms{}
 func sessionLeave(s *Session) {
 	s = s.Sync()
 	s.NonSync(func() {
-		for k, v := range s.GetRoomsData() {
+		for k, _ := range s.Rooms.Data() {
 			if ros[k] != nil {
-				ros[k].LeaveFrom(v.Id)
+				ros[k].Leave(s)
 			} else {
 				base.ERR(ros)
 			}
@@ -56,6 +56,10 @@ func NewRoom(name string) *Room {
 	return newRoomChild(name, nil)
 }
 
+func (ro *Room) Name() string {
+	return ro.name
+}
+
 func (ro *Room) Close() {
 	ro.ForEach(func(sess *Session) {
 		ro.Leave(sess)
@@ -64,19 +68,11 @@ func (ro *Room) Close() {
 }
 
 func (ro *Room) JoinFrom(uniq uint, sess *Session, head []byte) {
-
-	var r roomsData
-	sess.Rooms.DeJson(&r)
-	if r == nil {
-		r = roomsData{}
-	}
-	r[ro.name] = data{
+	sess.Rooms.Set(ro.name, data{
 		Id:   uniq,
 		Head: head,
-	}
-	sess.Rooms.EnJson(r)
+	})
 	ro.user[uniq] = sess
-
 	return
 }
 
@@ -89,13 +85,10 @@ func (ro *Room) LeaveFrom(uniq uint) (d data) {
 	if sess == nil {
 		return
 	}
-	delete(ro.user, uniq)
-	var r roomsData
-	sess.Rooms.DeJson(&r)
-	d = r[ro.name]
-	delete(r, ro.name)
-	sess.Rooms.EnJson(r)
+	sess.Rooms.Get(ro.name, &d)
+	sess.Rooms.Del(ro.name)
 
+	delete(ro.user, uniq)
 	return
 }
 
@@ -113,13 +106,11 @@ func (ro *Room) GetChild(name string) (nr *Room) {
 }
 
 func (ro *Room) ToChild(sess *Session, name string) (nr *Room) {
-
 	d := ro.Leave(sess)
 	if d.Id != 0 {
 		nr = ro.GetChild(name)
 		nr.JoinFrom(d.Id, sess, d.Head)
 	}
-
 	return
 }
 
@@ -128,31 +119,26 @@ func (ro *Room) GetParent() *Room {
 }
 
 func (ro *Room) ToParent(sess *Session) (nr *Room) {
-
 	d := ro.Leave(sess)
 	if nr = ro.parent; nr != nil && d.Id != 0 {
 		nr.JoinFrom(d.Id, sess, d.Head)
 	}
-
 	return
 }
 
 func (ro *Room) Uniq(sess *Session) uint {
-	return sess.GetRoomsData()[ro.name].Id
+	return sess.RoomsUniq(ro.name)
 }
 
 func (ro *Room) Head(sess *Session) []byte {
-	return sess.GetRoomsData()[ro.name].Head
+	return sess.RoomsHead(ro.name)
 }
 
 func (ro *Room) SetHead(sess *Session, head []byte) {
-	var r roomsData
-	sess.Rooms.DeJson(&r)
-	r[ro.name] = data{
-		Id:   r[ro.name].Id,
-		Head: head,
-	}
-	sess.Rooms.EnJson(r)
+	d := data{}
+	sess.Rooms.Get(ro.name, &d)
+	d.Head = head
+	sess.Rooms.Set(ro.name, d)
 }
 
 func (ro *Room) IsExist(sess *Session) bool {

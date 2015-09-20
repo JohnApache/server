@@ -40,7 +40,7 @@ func DefaulAgent() *agent.Agent {
 			Request: base.NewEncodeBytes(msg[4:]),
 			Head:    msg[:4],
 		}, &reply)
-
+		//base.INFO(string(reply.Session.Rooms.Bytes()))
 		return reply.Hand(user, msg[:4])
 	}, func(user *agent.User) {
 		for _, v := range *code {

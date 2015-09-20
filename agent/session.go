@@ -17,19 +17,16 @@ func (s sessions) Sync(se *Session) *Session {
 
 	if s[se.SerId] == nil {
 		s[se.SerId] = map[uint]*Session{}
-
 	}
 	uniq := se.ToUint()
-	sess := s[se.SerId][uniq]
-	if sess == nil {
-		s[se.SerId][uniq] = se
-		sess = s[se.SerId][uniq]
 
-	} else if sess != se {
-		sess.copys(se)
+	if s[se.SerId][uniq] == nil {
+		s[se.SerId][uniq] = se
+	} else if se != nil {
+		s[se.SerId][uniq].copys(se)
 	}
 
-	return sess
+	return s[se.SerId][uniq]
 }
 
 func (s sessions) Leave(se *Session) {
@@ -41,12 +38,13 @@ func (s sessions) Leave(se *Session) {
 
 type Session struct {
 	base.Unique
-	Data           *base.EncodeBytes
-	Rooms          *base.EncodeBytes
+	Data           *base.Stora
+	Rooms          *base.Stora
 	ConnectTime    time.Time
 	LastPacketTime time.Time
 	Dirtycount     uint
 	SerId          int
+	tmp            map[string]*base.EncodeBytes
 }
 
 func NewSession() *Session {
@@ -55,8 +53,8 @@ func NewSession() *Session {
 		LastPacketTime: time.Now(),
 		Dirtycount:     0,
 		SerId:          cfg.SelfId,
-		Data:           base.EnJson(nil),
-		Rooms:          base.EnJson(nil),
+		Data:           base.NewStora(),
+		Rooms:          base.NewStora(),
 	}
 	s.InitUint()
 	return &s
@@ -102,6 +100,7 @@ func (s *Session) Sync() *Session {
 func (s *Session) Already(args Request, reply *Response, f func()) {
 	f()
 	reply.Session = s
+
 }
 
 func (s *Session) Mutex(f func()) {
@@ -114,7 +113,7 @@ func (s *Session) Mutex(f func()) {
 		return
 	}
 
-	s = sesss.Sync(lockreply.Session)
+	s = lockreply.Session.Sync()
 	defer func() {
 		var unlockreply Response
 		unlockreply.Session = s
@@ -130,19 +129,51 @@ func (s *Session) NonSync(f func()) {
 	f()
 }
 
-func (s *Session) SumData(i interface{}) {
-	s.Data.SumJson(base.EnJson(i))
+func (s *Session) RoomsUniq(name string) uint {
+	d := data{}
+	s.Rooms.Get(name, &d)
+	return d.Id
 }
 
-func (s *Session) DeData(i interface{}) {
-	s.Data.DeJson(i)
+func (s *Session) RoomsHead(name string) []byte {
+	d := data{}
+	s.Rooms.Get(name, &d)
+	return d.Head
 }
 
-func (s *Session) EnData(i interface{}) {
-	s.Data.EnJson(i)
-}
+//func (s *Session) SumData(i interface{}) {
+//	s.Data.SumJson(base.EnJson(i))
+//}
 
-func (s *Session) GetRoomsData() (r roomsData) {
-	s.Rooms.DeJson(&r)
-	return
-}
+//func (s *Session) DeData(i interface{}) {
+//	s.Data.DeJson(i)
+//}
+
+//func (s *Session) EnData(i interface{}) {
+//	s.Data.EnJson(i)
+//}
+
+//func (s *Session) GetRoomsData() map[string]interface{} {
+//	return s.Rooms.Data()
+//}
+
+//func (s *Session) Set(k string, v interface{}) {
+//	if s.tmp == nil {
+//		s.tmp = map[string]*base.EncodeBytes{}
+//		s.DeData(&s.tmp)
+//		if s.tmp == nil {
+//			s.tmp = map[string]*base.EncodeBytes{}
+//		}
+//	}
+//	s.tmp[k] = base.EnJson(v)
+//}
+
+//func (s *Session) Get(k string, v interface{}) {
+//	if s.tmp == nil {
+//		s.tmp = map[string]*base.EncodeBytes{}
+//		s.DeData(&s.tmp)
+//	}
+//	if s.tmp[k] != nil {
+//		s.tmp[k].DeJson(v)
+//	}
+//}

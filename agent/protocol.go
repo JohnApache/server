@@ -10,9 +10,9 @@ type Request struct {
 	Session *Session
 }
 
-func (re Request) Mutex(reply *Response, f func()) {
+func (re *Request) Mutex(reply *Response, f func()) {
 	re.Session = re.Session.Sync()
-	re.Session.Already(re, reply, f)
+	re.Session.Already(*re, reply, f)
 }
 
 type Response struct {
@@ -21,15 +21,16 @@ type Response struct {
 	Session  *Session
 }
 
-func (re Response) Hand(user *User, head []byte) error {
-	ret := []byte{}
+func (re *Response) Hand(user *User, head []byte) error {
+
 	if re.Session != nil {
-		user.Session = re.Session
+		user.Session.copys(re.Session)
 	}
 
 	if re.Response == nil {
 		return nil
 	}
+	ret := []byte{}
 	ret = re.Response.Bytes()
 
 	if re.Head != nil && len(re.Head) != 0 {
