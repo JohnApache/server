@@ -22,10 +22,12 @@ func sessionLeave(s *Session) {
 }
 
 type Room struct {
-	name   string
-	user   map[uint]*Session
-	parent *Room
-	child  map[string]*Room
+	name       string
+	user       map[uint]*Session
+	parent     *Room
+	child      map[string]*Room
+	joinEvent  func(sess *Session)
+	leaveEvent func(sess *Session)
 }
 
 type data struct {
@@ -73,6 +75,9 @@ func (ro *Room) JoinFrom(uniq uint, sess *Session, head []byte) {
 		Head: head,
 	})
 	ro.user[uniq] = sess
+	if ro.joinEvent != nil {
+		ro.joinEvent(sess)
+	}
 	return
 }
 
@@ -87,8 +92,10 @@ func (ro *Room) LeaveFrom(uniq uint) (d data) {
 	}
 	sess.Rooms.Get(ro.name, &d)
 	sess.Rooms.Del(ro.name)
-
 	delete(ro.user, uniq)
+	if ro.leaveEvent != nil {
+		ro.leaveEvent(sess)
+	}
 	return
 }
 
@@ -192,32 +199,19 @@ func (ro *Room) GroupFromSize(size int) (sesss []*Session) {
 }
 
 func (ro *Room) Push(reply interface{}, sess *Session) (err error) {
-	return ro.Send(&Response{
-		Response: base.EnJson(reply),
-	},
-		sess,
-	)
+	return sess.Push(reply, ro.Head(sess))
 }
 
-func (ro *Room) Send(reply *Response, sess *Session) (err error) {
-	if reply.Head == nil {
-		reply.Head = ro.Head(sess)
-	}
-	if err = sess.Send(reply); err != nil {
-		base.ERR(err)
-		ro.Leave(sess)
-	}
-	return
-}
-
-func (ro *Room) BroadcastPush(reply interface{}) {
-	ro.Broadcast(&Response{
-		Response: base.EnJson(reply),
-	})
-}
-
-func (ro *Room) Broadcast(reply *Response) {
+func (ro *Room) Broadcast(reply interface{}) {
 	ro.ForEach(func(sess *Session) {
-		ro.Send(reply, sess)
+		ro.Push(reply, sess)
 	})
+}
+
+func (ro *Room) JoinEvent(f func(sess *Session)) {
+	ro.joinEvent = f
+}
+
+func (ro *Room) LeaveEvent(f func(sess *Session)) {
+	ro.leaveEvent = f
 }

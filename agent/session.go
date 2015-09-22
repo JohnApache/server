@@ -81,11 +81,11 @@ func (s *Session) Send(reply *Response) (err error) {
 	})
 }
 
-func (s *Session) Push(reply interface{}) (err error) {
-	return s.PushForm(reply, nil)
-}
+//func (s *Session) push(reply interface{}) (err error) {
+//	return s.Push(reply, nil)
+//}
 
-func (s *Session) PushForm(reply interface{}, hand []byte) (err error) {
+func (s *Session) Push(reply interface{}, hand []byte) (err error) {
 	return s.Send(&Response{
 		Response: base.EnJson(reply),
 		Head:     hand,
