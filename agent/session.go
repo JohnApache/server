@@ -66,9 +66,11 @@ func (s *Session) copys(e *Session) {
 	s.LastPacketTime = e.LastPacketTime
 	s.Dirtycount = e.Dirtycount
 }
+
 func (s *Session) refresh() {
 	s.LastPacketTime = time.Now()
 }
+
 func (s *Session) Send(reply *Response) (err error) {
 	defer func() {
 		if x := recover(); x != nil {
@@ -80,10 +82,6 @@ func (s *Session) Send(reply *Response) (err error) {
 		Reply: reply,
 	})
 }
-
-//func (s *Session) push(reply interface{}) (err error) {
-//	return s.Push(reply, nil)
-//}
 
 func (s *Session) Push(reply interface{}, hand []byte) (err error) {
 	return s.Send(&Response{
@@ -140,40 +138,3 @@ func (s *Session) RoomsHead(name string) []byte {
 	s.Rooms.Get(name, &d)
 	return d.Head
 }
-
-//func (s *Session) SumData(i interface{}) {
-//	s.Data.SumJson(base.EnJson(i))
-//}
-
-//func (s *Session) DeData(i interface{}) {
-//	s.Data.DeJson(i)
-//}
-
-//func (s *Session) EnData(i interface{}) {
-//	s.Data.EnJson(i)
-//}
-
-//func (s *Session) GetRoomsData() map[string]interface{} {
-//	return s.Rooms.Data()
-//}
-
-//func (s *Session) Set(k string, v interface{}) {
-//	if s.tmp == nil {
-//		s.tmp = map[string]*base.EncodeBytes{}
-//		s.DeData(&s.tmp)
-//		if s.tmp == nil {
-//			s.tmp = map[string]*base.EncodeBytes{}
-//		}
-//	}
-//	s.tmp[k] = base.EnJson(v)
-//}
-
-//func (s *Session) Get(k string, v interface{}) {
-//	if s.tmp == nil {
-//		s.tmp = map[string]*base.EncodeBytes{}
-//		s.DeData(&s.tmp)
-//	}
-//	if s.tmp[k] != nil {
-//		s.tmp[k].DeJson(v)
-//	}
-//}

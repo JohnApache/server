@@ -1,7 +1,5 @@
 package agent
 
-import "github.com/wzshiming/base"
-
 type rooms map[string]*Room
 
 var ros = rooms{}
@@ -12,9 +10,10 @@ func sessionLeave(s *Session) {
 		for k, _ := range s.Rooms.Data() {
 			if ros[k] != nil {
 				ros[k].Leave(s)
-			} else {
-				base.ERR(ros)
 			}
+			//			else {
+			//				base.ERR(ros)
+			//			}
 		}
 
 		sesss.Leave(s)
