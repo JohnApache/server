@@ -32,9 +32,10 @@ func DefaulAgent() *agent.Agent {
 		//defer base.PanicErr(&err)
 		var reply agent.Response
 		user.SetDeadline(time.Now().Add(time.Second * 60 * 60))
-		if msg[0] == 0 && msg[1] == 0 && msg[2] == 0 && msg[3] == 0 {
+		if msg[0] == 255 && msg[1] == 255 && msg[2] == 255 && msg[3] == 255 {
 			return user.WriteMsg(append(msg[:4], dj...))
 		}
+
 		err = ro.CallCode(msg[1], msg[2], msg[3], agent.Request{
 			Session: user.Session,
 			Request: base.NewEncodeBytes(msg[4:]),
