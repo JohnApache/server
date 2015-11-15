@@ -84,6 +84,9 @@ func (s *Session) Send(reply *Response) (err error) {
 }
 
 func (s *Session) Push(reply interface{}, hand []byte) (err error) {
+	if hand == nil {
+		return
+	}
 	return s.Send(&Response{
 		Response: base.EnJson(reply),
 		Head:     hand,

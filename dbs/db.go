@@ -8,6 +8,8 @@ import (
 	"github.com/wzshiming/server/cfg"
 )
 
+type Params map[string]interface{}
+
 type DB struct {
 	gorm.DB
 }

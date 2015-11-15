@@ -214,3 +214,13 @@ func (ro *Room) JoinEvent(f func(sess *Session)) {
 func (ro *Room) LeaveEvent(f func(sess *Session)) {
 	ro.leaveEvent = f
 }
+
+func (ro *Room) IsReady() bool {
+	var b = true
+	ro.ForEach(func(sess *Session) {
+		if ro.Head(sess) == nil {
+			b = false
+		}
+	})
+	return b
+}
