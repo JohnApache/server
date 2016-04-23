@@ -18,5 +18,5 @@ type Model gorm.Model
 
 func Conn(us cfg.DbConfig) (DB, error) {
 	db, err := gorm.Open(us.Dialect, us.Source)
-	return DB{db}, err
+	return DB{*db}, err
 }
